@@ -1,0 +1,117 @@
+---
+title: "Prediction of Exercise Types from Physical Activity Data"
+author: "Jim Haleblian"
+date: "Thursday, October 23, 2014"
+output: html_document
+---
+
+#Introduction
+
+This solution implements a prediction model for determining exercise type based on a set of physical activity observations.  We use the training function from the caret library in R to create that prediction model.
+We will be using randomForest as the method for training as it provides a reasonable accuracy in modeling which we show from confusion matrix data from the model for both the training and testing set.  We will also compute Out-of-sample error from the cross validation to further justify the model's accuracy.
+
+# Initialization and Library Loading
+
+First we load the necessary libraries and set the seed for the model.
+
+```{r}
+setwd("~/Rhome/PMLProj")
+library(caret)
+library(randomForest)
+library(e1071)
+set.seed(24601)
+```
+
+# Data Loading/Cleansing
+
+We then load the training and testing data from seperate files.
+While we load the data, we will cleanout the NA values by setting any blank, "NA" or "#DIV/0!" 
+input terms to NA.
+
+```{r}
+trainingLoad <- read.csv("pml-training.csv",na.strings=c("NA","#DIV/0!",""))
+testingLoad <- read.csv("pml-testing.csv",na.strings=c("NA","#DIV/0!",""))
+```
+
+For the sake of neatness, we then pull out all the columns that are completely NA in the test sample.  We then
+apply that to the testing set to make sure we maintain parallel processing between the sets.
+
+```{r}
+NAs <- apply(trainingLoad,2,function(x) {sum(is.na(x))}) 
+training <- trainingLoad[,which(NAs == 0)]
+testing <- testingLoad[,which(NAs == 0)]
+```
+
+Some of the columns show up as factors that would be better evaluated as numeric, so we force those to numeric.
+
+```{r}
+twnums <- training
+for(i in c(8:ncol(twnums)-1)) {twnums[,i] = as.numeric(as.character(twnums[,i]))}
+tstnums <- testing
+for(i in c(8:ncol(tstnums)-1)) {tstnums[,i] = as.numeric(as.character(tstnums[,i]))}
+```
+
+The first seven columns of the resultant sets aren't really relevant for prediction modeling, so we'll just go ahead and remove those as well.
+
+```{r}
+goodfeats <- colnames(twnums[colSums(is.na(twnums)) == 0])[-(1:7)]
+featureset <- twnums[goodfeats]
+goodfeats <- colnames(tstnums[colSums(is.na(tstnums)) == 0])[-(1:7)]
+featuretest <- tstnums[goodfeats]
+```
+
+## Building data sets for training and cross validation. 
+
+Now that we have acceptably clean sets for modeling, we'll take the training set and split it further to create a cross-validation set from 25% of the original training set.  We'll take the remainder and make it the new training set.
+
+```{r}
+trgroup <- createDataPartition(y = featureset$classe, p=0.75,list=FALSE)
+trainset <- featureset[trgroup,]
+cvset <- featureset[-trgroup,]
+```
+
+## Training
+
+Now we're ready to train the model.  We'll use the "rf"/random forest method (from the randomForest package), but first we need to use the trControl parameter to set the cv parameter in order to get our cross validation. setting cv to 5 takes a little while to run, but appears to give pretty good results.
+
+```{r}
+trCon = trainControl(method = "cv", number = 5)
+modelFit <- train(classe ~ ., trControl=trCon, method="rf", data=trainset)
+modelFit
+
+```
+
+## Cross-validation
+
+After modeling we can calculate the sample error using the Cross Validation Set.
+
+```{r}
+cvrun <- predict(modelFit, cvset)
+cvsamperr <- sum(cvrun == cvset$classe)/nrow(cvset)
+```
+
+## Prediction and check
+
+Now we can generate data for the prediction vector and files for the Assigment Submission. We'll also check the training set so that we can look at the confusion matrix for both the training and testing sets to see how see did perfomance-wise.
+
+```{r} 
+checkTrain <- predict(modelFit,trainset)
+answers <- predict(modelFit, testing)
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(answers)
+
+confusionMatrix(checkTrain,trainset)
+confusionMatrix(answers,testing)
+```
+
+Comparing accuracies the model solution looks quite reasonable.  The submitted answers all were marked correct.
+
+
