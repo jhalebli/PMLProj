@@ -10,7 +10,7 @@ output: html_document
 This solution implements a prediction model for determining exercise type based on a set of physical activity observations.  We use the training function from the caret library in R to create that prediction model.
 We will be using randomForest as the method for training as it provides a reasonable accuracy in modeling which we show from confusion matrix data from the model for both the training and testing set.  We will also compute Out-of-sample error from the cross validation to further justify the model's accuracy.
 
-# Initialization and Library Loading
+#Initialization and Library Loading
 
 First we load the necessary libraries and set the seed for the model.
 
@@ -72,10 +72,10 @@ cvset <- featureset[-trgroup,]
 
 ## Training
 
-Now we're ready to train the model.  We'll use the "rf"/random forest method (from the randomForest package), but first we need to use the trControl parameter to set the cv parameter in order to get our cross validation. setting cv to 5 takes a little while to run, but appears to give pretty good results.
+Now we're ready to train the model.  We'll use the "rf"/random forest method (from the randomForest package), but first we need to use the trControl parameter to set the cv parameter in order to get our cross validation. setting cv to 4 takes a little while to run, but appears to give pretty good results.
 
 ```{r}
-trCon = trainControl(method = "cv", number = 5)
+trCon = trainControl(method = "cv", number = 4)
 modelFit <- train(classe ~ ., trControl=trCon, method="rf", data=trainset)
 modelFit
 
@@ -83,20 +83,20 @@ modelFit
 
 ## Cross-validation
 
-After modeling we can calculate the sample error using the Cross Validation Set.
-
 ```{r}
 cvrun <- predict(modelFit, cvset)
 cvsamperr <- sum(cvrun == cvset$classe)/nrow(cvset)
 ```
 
+After modeling we can calculate the sample error using the Cross Validation Set. The Out-of-sample Error is `r cvsamperr`.
+
 ## Prediction and check
 
-Now we can generate data for the prediction vector and files for the Assigment Submission. We'll also check the training set so that we can look at the confusion matrix for both the training and testing sets to see how see did perfomance-wise.
+Now we can generate data for the prediction vector and files for the Assigment Submission.
 
 ```{r} 
-checkTrain <- predict(modelFit,trainset)
 answers <- predict(modelFit, testing)
+answers
 
 pml_write_files = function(x){
   n = length(x)
@@ -107,11 +107,14 @@ pml_write_files = function(x){
 }
 
 pml_write_files(answers)
-
-confusionMatrix(checkTrain,trainset)
-confusionMatrix(answers,testing)
 ```
 
+Just for a sanity check we inspect the confusion matrix for the cross-validation set:
+
+```{r}
+checkTrain <- predict(modelFit,cvset)
+confusionMatrix(checkTrain,cvset$classe)
+```
 Comparing accuracies the model solution looks quite reasonable.  The submitted answers all were marked correct.
 
 
